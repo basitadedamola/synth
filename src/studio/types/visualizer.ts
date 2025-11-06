@@ -69,3 +69,69 @@ export interface VisualizerComponent {
     beatInfo: BeatInfo
   ) => void;
 }
+
+
+export interface BaseCustomization {
+  color: string;
+  opacity: number;
+  intensity: number;
+  responseTo?: 'bass' | 'mid' | 'treble' | 'beat' | 'overall';
+}
+
+export interface ParticleCustomization extends BaseCustomization {
+  size: number;
+  speed: number;
+  count: number;
+  spawnRate?: number;
+  lifetime?: number;
+}
+
+export interface LightCustomization extends BaseCustomization {
+  position?: [number, number, number];
+  distance?: number;
+  decay?: number;
+}
+
+export interface GridCustomization extends BaseCustomization {
+  size: number;
+  divisions: number;
+  lineWidth?: number;
+}
+
+export interface BackgroundCustomization {
+  color: string;
+  gradient?: boolean;
+  gradientStart?: string;
+  gradientEnd?: string;
+  opacity: number;
+}
+
+export interface ShapeCustomization extends BaseCustomization {
+  geometry: 'cube' | 'sphere' | 'cone' | 'torus';
+  size: number;
+  rotationSpeed: number;
+  wireframe?: boolean;
+}
+
+export interface WaveCustomization extends BaseCustomization {
+  amplitude: number;
+  frequency: number;
+  speed: number;
+  points?: number;
+}
+
+export type Customization = 
+  | ParticleCustomization
+  | LightCustomization
+  | GridCustomization
+  | BackgroundCustomization
+  | ShapeCustomization
+  | WaveCustomization;
+
+export interface VisualElement {
+  id: string;
+  type: 'particle' | 'shape' | 'light' | 'grid' | 'wave' | 'background';
+  name: string;
+  visible: boolean;
+  customization: Customization;
+}

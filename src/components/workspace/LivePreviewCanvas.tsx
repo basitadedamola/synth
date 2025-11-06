@@ -8,22 +8,32 @@ import {
   Volume2,
   Upload,
   Music,
+  Zap,
 } from "lucide-react";
 import { BeatInfo } from "../../studio/types/visualizer";
-// import { Button } from "../../studio/components/Button";
-// import { Slider } from "../../studio/components/Slider";
-
 import { Button } from "../ui/Button";
 import { Slider } from "../ui/Slider";
 import * as THREE from "three";
 import { VisualizerParams } from "../../studio/types/visualizer";
 import { AudioManager } from "../../studio/audio/AudioManager";
 import { VisualizerManager } from "../../studio/visualizers/manager/VisualizerManager";
+import { useVisualizer } from "../contexts/VisualizerContext";
+import { ElementCustomizationPanel } from "../../studio/visualizers/Elements/ElementCustomizationPanel";
+import { VisualElementSelector } from "../../studio/visualizers/Elements/VisualElementSelector";
 
 export const LivePreviewCanvas: React.FC = () => {
+  const {
+    params,
+    setParams,
+    visualElements,
+    updateElement,
+    selectedElement,
+    setSelectedElement,
+    audioData,
+    setAudioData
+  } = useVisualizer();
+
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioLevel, setAudioLevel] = useState(0);
-  const [beatDetected, setBeatDetected] = useState(false);
   const [uploadedAudio, setUploadedAudio] = useState<File | null>(null);
   const [audioName, setAudioName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
@@ -31,39 +41,13 @@ export const LivePreviewCanvas: React.FC = () => {
   const [hasDefaultAudio, setHasDefaultAudio] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-
-  const [params, setParams] = useState<VisualizerParams>({
-    visualizerType: "audioReactive",
-    colorScheme: "cyberpunk",
-    intensity: 75,
-    speed: 50,
-    rotationSpeed: 25,
-    particleCount: 3000,
-    bloom: true,
-    wireframe: false,
-    mirrorEffect: true,
-    complexity: 6,
-    scale: 1.0,
-    bassBoost: false,
-    reverb: false,
-    frequencyRange: [20, 20000],
-    smoothing: 0.8,
-    beatDetection: true,
-    patternDensity: 5,
-    objectSize: 1.0,
-    morphSpeed: 50,
-    fluidity: 50,
-    glowIntensity: 50,
-    reactionSpeed: 50,
-  });
+  const [beatDetected, setBeatDetected] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const visualizerManagerRef = useRef<VisualizerManager>(
-    new VisualizerManager()
-  );
+  const visualizerManagerRef = useRef<VisualizerManager>(new VisualizerManager());
   const audioManagerRef = useRef<AudioManager>(new AudioManager());
   const animationIdRef = useRef<number>(0);
   const visualizerObjectsRef = useRef<THREE.Object3D[]>([]);
@@ -74,12 +58,18 @@ export const LivePreviewCanvas: React.FC = () => {
   });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Initialize Three.js
+  // Enhanced lighting references with proper typing
+  const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
+  const directionalLightRef = useRef<THREE.DirectionalLight | null>(null);
+  const pointLightsRef = useRef<THREE.PointLight[]>([]);
+  const backgroundRef = useRef<THREE.Color | THREE.Texture | null>(null);
+
+  // Initialize Three.js with enhanced element management
   useEffect(() => {
     if (!canvasRef.current) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a0a);
+    updateBackground(scene);
 
     const camera = new THREE.PerspectiveCamera(
       75,
@@ -101,22 +91,8 @@ export const LivePreviewCanvas: React.FC = () => {
     );
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-    // Enhanced Lighting
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
-    scene.add(ambientLight);
-
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-    directionalLight.position.set(5, 5, 5);
-    scene.add(directionalLight);
-
-    // Add point lights for better 3D effect
-    const pointLight1 = new THREE.PointLight(0xff00ff, 0.5, 100);
-    pointLight1.position.set(10, 10, 10);
-    scene.add(pointLight1);
-
-    const pointLight2 = new THREE.PointLight(0x00ffff, 0.5, 100);
-    pointLight2.position.set(-10, -10, -10);
-    scene.add(pointLight2);
+    // Create lights based on visual elements
+    createLightsFromElements(scene);
 
     sceneRef.current = scene;
     cameraRef.current = camera;
@@ -163,6 +139,91 @@ export const LivePreviewCanvas: React.FC = () => {
     };
   }, []);
 
+  // Update background when background element changes
+  const updateBackground = (scene: THREE.Scene) => {
+    const backgroundElement = visualElements.find(el => el.id === 'background');
+    if (!backgroundElement || !backgroundElement.visible) {
+      scene.background = new THREE.Color(0x0a0a0a);
+      return;
+    }
+
+    const customization = backgroundElement.customization as any;
+    
+    if (customization.gradient && customization.gradientStart && customization.gradientEnd) {
+      // Create gradient background
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const context = canvas.getContext('2d')!;
+      const gradient = context.createLinearGradient(0, 0, 256, 256);
+      gradient.addColorStop(0, customization.gradientStart);
+      gradient.addColorStop(1, customization.gradientEnd);
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, 256, 256);
+      
+      const texture = new THREE.CanvasTexture(canvas);
+      scene.background = texture;
+      backgroundRef.current = texture;
+    } else {
+      scene.background = new THREE.Color(customization.color || 0x0a0a0a);
+      backgroundRef.current = scene.background;
+    }
+  };
+
+  // Create lights from visual elements with proper typing
+  const createLightsFromElements = (scene: THREE.Scene) => {
+    // Clear existing lights
+    if (ambientLightRef.current) scene.remove(ambientLightRef.current);
+    if (directionalLightRef.current) scene.remove(directionalLightRef.current);
+    pointLightsRef.current.forEach(light => scene.remove(light));
+    pointLightsRef.current = [];
+
+    visualElements.forEach(element => {
+      if (element.type === 'light' && element.visible) {
+        const customization = element.customization as any;
+        
+        if (element.id === 'ambient-light') {
+          const light = new THREE.AmbientLight(
+            customization.color || '#ffffff',
+            customization.intensity || 1
+          );
+          ambientLightRef.current = light;
+          scene.add(light);
+        } else if (element.id === 'directional-light') {
+          const light = new THREE.DirectionalLight(
+            customization.color || '#ffffff',
+            customization.intensity || 1
+          );
+          if (customization.position && Array.isArray(customization.position)) {
+            light.position.set(
+              customization.position[0] || 5,
+              customization.position[1] || 5,
+              customization.position[2] || 5
+            );
+          } else {
+            light.position.set(5, 5, 5);
+          }
+          directionalLightRef.current = light;
+          scene.add(light);
+        } else {
+          const light = new THREE.PointLight(
+            customization.color || '#ffffff',
+            customization.intensity || 1,
+            customization.distance || 100,
+            customization.decay || 2
+          );
+          light.position.set(
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20,
+            (Math.random() - 0.5) * 20
+          );
+          pointLightsRef.current.push(light);
+          scene.add(light);
+        }
+      }
+    });
+  };
+
   // Set up progress tracking
   useEffect(() => {
     const manager = audioManagerRef.current;
@@ -204,7 +265,7 @@ export const LivePreviewCanvas: React.FC = () => {
     visualizerObjectsRef.current = objects;
   };
 
-  // Enhanced animation loop with audio analysis
+  // Enhanced animation loop with element-based audio response
   useEffect(() => {
     if (!sceneRef.current || !cameraRef.current || !rendererRef.current) return;
 
@@ -212,19 +273,77 @@ export const LivePreviewCanvas: React.FC = () => {
       animationIdRef.current = requestAnimationFrame(animate);
 
       const frequencyData = audioManagerRef.current.getFrequencyData();
+      const timeData = audioManagerRef.current.getTimeDomainData();
       const time = Date.now() * 0.001;
 
-      // Enhanced beat detection with frequency analysis
+      // Update audio data in context - FIXED: Convert Uint8Array to Float32Array for timeData
       const beatInfo = audioManagerRef.current.detectBeat(frequencyData);
       beatInfoRef.current = beatInfo;
+      
+      // Convert timeData from Uint8Array to Float32Array if needed
+      const convertedTimeData = timeData instanceof Uint8Array 
+        ? new Float32Array(timeData.length).map((_, i) => (timeData[i] - 128) / 128)
+        : timeData;
 
-      // Calculate audio level
-      const rms =
-        Math.sqrt(
-          frequencyData.reduce((sum, value) => sum + value * value, 0) /
-            frequencyData.length
-        ) / 255;
-      setAudioLevel(rms * 100);
+      setAudioData({
+        frequencyData,
+        timeData: convertedTimeData,
+        beatInfo,
+        audioLevel: beatInfo.strength * 100
+      });
+
+      // Calculate frequency bands for element response
+      const bass = beatInfo.bandStrengths.bass || 0;
+      const mid = beatInfo.bandStrengths.mid || 0;
+      const treble = beatInfo.bandStrengths.treble || 0;
+      const overall = beatInfo.strength || 0;
+
+      // Update visual elements based on audio response
+      visualElements.forEach(element => {
+        if (!element.visible) return;
+
+        const responseTo = (element.customization as any).responseTo || 'overall';
+        let intensity = 1;
+
+        switch (responseTo) {
+          case 'bass':
+            intensity = 1 + bass * 2;
+            break;
+          case 'mid':
+            intensity = 1 + mid * 2;
+            break;
+          case 'treble':
+            intensity = 1 + treble * 2;
+            break;
+          case 'beat':
+            intensity = beatInfo.isBeat ? 2 : 1;
+            break;
+          case 'overall':
+            intensity = 1 + overall * 2;
+            break;
+        }
+
+        // Apply to Three.js objects
+        if (element.type === 'light') {
+          if (element.id === 'ambient-light' && ambientLightRef.current) {
+            ambientLightRef.current.intensity = (element.customization as any).intensity * intensity;
+            ambientLightRef.current.color.set((element.customization as any).color);
+          }
+
+          if (element.id === 'directional-light' && directionalLightRef.current) {
+            directionalLightRef.current.intensity = (element.customization as any).intensity * intensity;
+            directionalLightRef.current.color.set((element.customization as any).color);
+          }
+
+          // Update point lights
+          if (pointLightsRef.current.length > 0) {
+            pointLightsRef.current.forEach(light => {
+              light.intensity = (element.customization as any).intensity * intensity;
+              light.color.set((element.customization as any).color);
+            });
+          }
+        }
+      });
 
       if (params.beatDetection && beatInfo.isBeat) {
         setBeatDetected(true);
@@ -242,7 +361,6 @@ export const LivePreviewCanvas: React.FC = () => {
 
       // Dynamic camera movement based on audio
       if (cameraRef.current && params.rotationSpeed > 0) {
-        const bass = beatInfo.bandStrengths.bass;
         const cameraDistance = 15 + bass * 5;
         const cameraSpeed = params.rotationSpeed * 0.005 + bass * 0.01;
 
@@ -267,7 +385,15 @@ export const LivePreviewCanvas: React.FC = () => {
         cancelAnimationFrame(animationIdRef.current);
       }
     };
-  }, [isPlaying, params]);
+  }, [isPlaying, params, visualElements]);
+
+  // Update background and lights when elements change
+  useEffect(() => {
+    if (sceneRef.current) {
+      updateBackground(sceneRef.current);
+      createLightsFromElements(sceneRef.current);
+    }
+  }, [visualElements]);
 
   const togglePlayback = async () => {
     const manager = audioManagerRef.current;
@@ -388,6 +514,12 @@ export const LivePreviewCanvas: React.FC = () => {
       <div className="flex-1 relative group">
         <canvas ref={canvasRef} className="w-full h-full" />
 
+        {/* Element Customization Panel */}
+        <ElementCustomizationPanel />
+
+        {/* Visual Element Selector */}
+        <VisualElementSelector />
+
         {beatDetected && (
           <div className="absolute inset-0 bg-white/10 animate-pulse pointer-events-none" />
         )}
@@ -453,13 +585,24 @@ export const LivePreviewCanvas: React.FC = () => {
             {isPlaying ? "Pause" : "Play"}
           </Button>
 
+          {/* Element Customization Toggle */}
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Zap size={16} />}
+            onClick={() => setSelectedElement(selectedElement ? null : visualElements[0]?.id)}
+            className={selectedElement ? "bg-cyan-500/20 border-cyan-500/50" : ""}
+          >
+            Customize
+          </Button>
+
+          {/* FIXED: Properly typed select onChange handler */}
           <select
             value={params.visualizerType}
             onChange={(e) =>
-              setParams((p) => ({
+              setParams((p: VisualizerParams) => ({
                 ...p,
-                visualizerType: e.target
-                  .value as VisualizerParams["visualizerType"],
+                visualizerType: e.target.value as VisualizerParams["visualizerType"],
               }))
             }
             className="bg-slate-800/90 backdrop-blur-xl border border-slate-600 rounded-xl px-4 py-3 text-sm text-white"
@@ -481,7 +624,7 @@ export const LivePreviewCanvas: React.FC = () => {
             <div className="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-green-400 via-yellow-400 to-red-400 transition-all duration-100"
-                style={{ width: `${audioLevel}%` }}
+                style={{ width: `${audioData.audioLevel}%` }}
               />
             </div>
           </div>
@@ -517,7 +660,7 @@ export const LivePreviewCanvas: React.FC = () => {
             <span className="text-sm text-slate-300 capitalize">
               {params.visualizerType} Visualizer
             </span>
-            {beatInfoRef.current.isBeat && (
+            {beatDetected && (
               <span className="ml-2 text-xs text-red-400 animate-pulse">
                 BEAT!
               </span>
@@ -569,18 +712,18 @@ export const LivePreviewCanvas: React.FC = () => {
           <Slider
             label="Intensity"
             value={params.intensity}
-            onChange={(v: any) => setParams((p) => ({ ...p, intensity: v }))}
+            onChange={(v: number) => setParams((p: VisualizerParams) => ({ ...p, intensity: v }))}
           />
           <Slider
             label="Speed"
             value={params.speed}
-            onChange={(v: any) => setParams((p) => ({ ...p, speed: v }))}
+            onChange={(v: number) => setParams((p: VisualizerParams) => ({ ...p, speed: v }))}
           />
           <Slider
             label="Rotation"
             value={params.rotationSpeed}
-            onChange={(v: any) =>
-              setParams((p) => ({ ...p, rotationSpeed: v }))
+            onChange={(v: number) =>
+              setParams((p: VisualizerParams) => ({ ...p, rotationSpeed: v }))
             }
           />
           <Slider
@@ -588,7 +731,7 @@ export const LivePreviewCanvas: React.FC = () => {
             value={params.complexity}
             min={1}
             max={10}
-            onChange={(v: any) => setParams((p) => ({ ...p, complexity: v }))}
+            onChange={(v: number) => setParams((p: VisualizerParams) => ({ ...p, complexity: v }))}
           />
           <Slider
             label="Particles"
@@ -596,25 +739,25 @@ export const LivePreviewCanvas: React.FC = () => {
             min={100}
             max={10000}
             step={100}
-            onChange={(v: any) =>
-              setParams((p) => ({ ...p, particleCount: v }))
+            onChange={(v: number) =>
+              setParams((p: VisualizerParams) => ({ ...p, particleCount: v }))
             }
           />
           <Slider
             label="Morph Speed"
             value={params.morphSpeed}
-            onChange={(v: any) => setParams((p) => ({ ...p, morphSpeed: v }))}
+            onChange={(v: number) => setParams((p: VisualizerParams) => ({ ...p, morphSpeed: v }))}
           />
           <Slider
             label="Fluidity"
             value={params.fluidity}
-            onChange={(v: any) => setParams((p) => ({ ...p, fluidity: v }))}
+            onChange={(v: number) => setParams((p: VisualizerParams) => ({ ...p, fluidity: v }))}
           />
           <Slider
             label="Reaction Speed"
             value={params.reactionSpeed}
-            onChange={(v: any) =>
-              setParams((p) => ({ ...p, reactionSpeed: v }))
+            onChange={(v: number) =>
+              setParams((p: VisualizerParams) => ({ ...p, reactionSpeed: v }))
             }
           />
         </div>
@@ -626,7 +769,7 @@ export const LivePreviewCanvas: React.FC = () => {
                 type="checkbox"
                 checked={params.wireframe}
                 onChange={(e) =>
-                  setParams((p) => ({ ...p, wireframe: e.target.checked }))
+                  setParams((p: VisualizerParams) => ({ ...p, wireframe: e.target.checked }))
                 }
                 className="rounded border-slate-600 bg-slate-700 focus:ring-2 focus:ring-cyan-500"
               />
@@ -637,7 +780,7 @@ export const LivePreviewCanvas: React.FC = () => {
                 type="checkbox"
                 checked={params.beatDetection}
                 onChange={(e) =>
-                  setParams((p) => ({ ...p, beatDetection: e.target.checked }))
+                  setParams((p: VisualizerParams) => ({ ...p, beatDetection: e.target.checked }))
                 }
                 className="rounded border-slate-600 bg-slate-700 focus:ring-2 focus:ring-cyan-500"
               />
@@ -648,7 +791,7 @@ export const LivePreviewCanvas: React.FC = () => {
                 type="checkbox"
                 checked={params.mirrorEffect}
                 onChange={(e) =>
-                  setParams((p) => ({ ...p, mirrorEffect: e.target.checked }))
+                  setParams((p: VisualizerParams) => ({ ...p, mirrorEffect: e.target.checked }))
                 }
                 className="rounded border-slate-600 bg-slate-700 focus:ring-2 focus:ring-cyan-500"
               />
