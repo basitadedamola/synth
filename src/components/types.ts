@@ -1,23 +1,5 @@
+// src/studio/types/visualizer.ts
 import * as THREE from 'three';
-
-// export interface VisualizerParams {
-//   visualizerType: "spectrum" | "particleWave" | "orbital" | "tunnel" | "nebula" | "crystal";
-//   colorScheme: "cyberpunk" | "ocean" | "sunset" | "forest" | "neon" | "monochrome" | "rainbow";
-//   intensity: number;
-//   speed: number;
-//   rotationSpeed: number;
-//   particleCount: number;
-//   bloom: boolean;
-//   wireframe: boolean;
-//   mirrorEffect: boolean;
-//   complexity: number;
-//   scale: number;
-//   bassBoost: boolean;
-//   reverb: boolean;
-//   frequencyRange: [number, number];
-//   smoothing: number;
-//   beatDetection: boolean;
-// }
 
 export interface AIConfig extends Partial<VisualizerParams> {
   name: string;
@@ -54,7 +36,12 @@ export interface VisualizerObjects {
   renderer: THREE.WebGLRenderer | null;
   analyser: AnalyserNode | null;
   audioContext: AudioContext | null;
-  audioSource: AudioBufferSourceNode | MediaElementAudioSourceNode | MediaStreamAudioSourceNode | OscillatorNode | null;
+  audioSource:
+    | AudioBufferSourceNode
+    | MediaElementAudioSourceNode
+    | MediaStreamAudioSourceNode
+    | OscillatorNode
+    | null;
   visualizerObjects: THREE.Object3D[];
 }
 
@@ -66,8 +53,31 @@ export interface AudioAnalysis {
 }
 
 export interface VisualizerParams {
-  visualizerType: "spectrum" | "particleWave" | "orbital" | "tunnel" | "nebula" | "crystal" | "solarSystem" | "blackHole" | "galaxy" | "constellation" | "pulsar" | "cometField";
-  colorScheme: "cyberpunk" | "ocean" | "sunset" | "forest" | "neon" | "monochrome" | "rainbow" | "cosmic" | "aurora" | "supernova" | "quasar";
+  visualizerType:
+    | 'spectrum'
+    | 'particleWave'
+    | 'orbital'
+    | 'tunnel'
+    | 'nebula'
+    | 'crystal'
+    | 'solarSystem'
+    | 'blackHole'
+    | 'galaxy'
+    | 'constellation'
+    | 'pulsar'
+    | 'cometField';
+  colorScheme:
+    | 'cyberpunk'
+    | 'ocean'
+    | 'sunset'
+    | 'forest'
+    | 'neon'
+    | 'monochrome'
+    | 'rainbow'
+    | 'cosmic'
+    | 'aurora'
+    | 'supernova'
+    | 'quasar';
   intensity: number;
   speed: number;
   rotationSpeed: number;
@@ -90,7 +100,15 @@ export interface VisualizerParams {
 }
 
 export interface CelestialBody {
-  type: 'star' | 'planet' | 'moon' | 'asteroid' | 'comet' | 'blackhole' | 'nebula' | 'pulsar';
+  type:
+    | 'star'
+    | 'planet'
+    | 'moon'
+    | 'asteroid'
+    | 'comet'
+    | 'blackhole'
+    | 'nebula'
+    | 'pulsar';
   size: number;
   orbitRadius: number;
   orbitSpeed: number;

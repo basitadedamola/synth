@@ -1,3 +1,4 @@
+// types/visualizer.ts - Complete fixed version
 import * as THREE from "three";
 
 export interface VisualizerParams {
@@ -18,7 +19,8 @@ export interface VisualizerParams {
     | "hologram"
     | "neural"
     | "cyberGrid"
-    | "biomorphic";
+    | "biomorphic"
+    | string;
   colorScheme:
     | "cyberpunk"
     | "ocean"
@@ -59,23 +61,12 @@ export interface BeatInfo {
   bandStrengths: Record<string, number>;
 }
 
-export interface VisualizerComponent {
-  create: (scene: THREE.Scene, params: VisualizerParams) => THREE.Object3D[];
-  animate: (
-    objects: THREE.Object3D[],
-    frequencyData: Uint8Array,
-    time: number,
-    params: VisualizerParams,
-    beatInfo: BeatInfo
-  ) => void;
-}
-
-
 export interface BaseCustomization {
   color: string;
   opacity: number;
   intensity: number;
-  responseTo?: 'bass' | 'mid' | 'treble' | 'beat' | 'overall';
+  responseTo?: "bass" | "mid" | "treble" | "beat" | "overall";
+  responsive?: boolean;
 }
 
 export interface ParticleCustomization extends BaseCustomization {
@@ -107,7 +98,7 @@ export interface BackgroundCustomization {
 }
 
 export interface ShapeCustomization extends BaseCustomization {
-  geometry: 'cube' | 'sphere' | 'cone' | 'torus';
+  geometry: "cube" | "sphere" | "cone" | "torus";
   size: number;
   rotationSpeed: number;
   wireframe?: boolean;
@@ -117,21 +108,42 @@ export interface WaveCustomization extends BaseCustomization {
   amplitude: number;
   frequency: number;
   speed: number;
-  points?: number;
+  points: number;
 }
 
-export type Customization = 
+export interface AmbientElementCustomization extends BaseCustomization {
+  elementType: "bouncing-ball" | "floating-particle" | "flying-bird" | "floating-text" | "rotating-cube" | "pulsing-sphere" | string;
+  movementType: "bounce" | "float" | "fly" | "rotate" | "pulse";
+  size: number;
+  speed: number;
+  amplitude: number;
+  frequency: number;
+  bounceHeight: number;
+}
+
+export type Customization =
   | ParticleCustomization
   | LightCustomization
   | GridCustomization
   | BackgroundCustomization
   | ShapeCustomization
-  | WaveCustomization;
+  | WaveCustomization
+  | AmbientElementCustomization;
 
 export interface VisualElement {
   id: string;
-  type: 'particle' | 'shape' | 'light' | 'grid' | 'wave' | 'background';
+  type: "particle" | "shape" | "light" | "grid" | "wave" | "background" | "ambient";
   name: string;
   visible: boolean;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
   customization: Customization;
+}
+
+export interface AudioData {
+  frequencyData: Uint8Array;
+  timeData: Float32Array;
+  beatInfo: BeatInfo;
+  audioLevel: number;
 }
